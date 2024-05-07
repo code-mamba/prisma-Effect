@@ -3,14 +3,28 @@ import { createTicket, deletTicket, editTicket, getTicketById, getTickets } from
 import { Effect, pipe } from "effect"
 import { TicketRepositoryLive } from "./ticket.service"
 
+
 export const router: Router = Router()
 
 
 router.get("/tickets", async (_req, res:Response)=>{
     const tickets = getTickets()
-    const runnableProgram = pipe(tickets, Effect.provide(TicketRepositoryLive))
-    return Effect.runPromise(runnableProgram).then((ticket)=>{
-        res.json(ticket)
+    const programWithErrors = pipe(tickets, Effect.map(x=>({
+        status:200,
+        data: x
+    })),
+    Effect.catchTags({
+        EmptyTicket:(err) => Effect.succeed({
+            status: 400,
+            data:{
+                error: err._tag
+            }
+        })
+    })
+)
+    const runnableProgram = pipe(programWithErrors, Effect.provide(TicketRepositoryLive))
+    return Effect.runPromise(runnableProgram).then((data)=>{
+        res.status(data.status).json(data.data)
     })
     .catch(x=>{
         res.json(x)
@@ -21,9 +35,20 @@ router.get("/tickets", async (_req, res:Response)=>{
 router.get("/tickets/:id", async (req:Request, res:Response)=>{
     const id = Number(req.params.id)
     const ticket = getTicketById(Number(id))
-    const runnableProgram = pipe(ticket, Effect.provide(TicketRepositoryLive))
-    return Effect.runPromise(runnableProgram).then((ticket)=>{
-        res.json(ticket)
+    const programWithErrors = pipe(ticket, Effect.map(x=>({
+        status:200,
+        data: x
+    })),
+    Effect.catchTags({
+        TicketNotFoundErr:(err)=> Effect.succeed({
+            status: 400,
+            date: err._tag
+        })
+    })
+)
+    const runnableProgram = pipe(programWithErrors, Effect.provide(TicketRepositoryLive))
+    return Effect.runPromise(runnableProgram).then((data)=>{
+        res.status(data.status).json(data)
     })
     .catch((x)=>{
         res.json(x)
